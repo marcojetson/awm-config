@@ -82,8 +82,10 @@ end
 -- {{{ Wibox
 -- Create a battery widget
 function set_mybatterystatus ()
-    local fh = assert(io.popen("acpi | cut -d, -f 2 -", "r"))
-    local charge = tonumber(string.match(fh:read(), "%d+"))
+    local fh = assert(io.popen("acpi | cut -d, -f 1,2 -", "r"))
+    local status, charge = string.match(fh:read(), ": (%w+), (%d+)")
+    
+    charge = tonumber(charge)
     local red = 255
     local green = 255
     if charge > 50 then
@@ -91,16 +93,28 @@ function set_mybatterystatus ()
     elseif charge < 50 then
         green = math.ceil(charge * 5.1)
     end
-    mybatterystatus:set_value(charge / 100)
-    awful.widget.progressbar.set_color(mybatterystatus, string.format("#%.2x%.2x00", red, green))
+    mybatterystatusprogress:set_value(charge / 100)
+    awful.widget.progressbar.set_color(mybatterystatusprogress, string.format("#%.2x%.2x00", red, green))
     fh:close()
+
+    local chargingwidget = nil
+    if status == "Charging" then
+        chargingwidget = mybatterystatuscharging
+    end
+    mybatterystatuschargingcontainer:set_widget(chargingwidget)
 end
 
-mybatterystatus = awful.widget.progressbar()
-awful.widget.progressbar.set_background_color(mybatterystatus, beautiful.background_normal)
+mybatterystatuscharging = wibox.widget.imagebox()
+mybatterystatuscharging:set_image(awful.util.getdir("config") .. "/themes/default/charging.png")
+mybatterystatuschargingcontainer = wibox.layout.margin()
+mybatterystatuschargingcontainer:set_margins(2)
+mybatterystatuschargingcontainer:set_widget(nil)
+
+mybatterystatusprogress = awful.widget.progressbar()
+awful.widget.progressbar.set_background_color(mybatterystatusprogress, beautiful.background_normal)
 set_mybatterystatus()
 
-mybatterystatustimer = timer({ timeout = 60 })
+mybatterystatustimer = timer({ timeout = 1 })
 mybatterystatustimer:connect_signal("timeout", set_mybatterystatus)
 mybatterystatustimer:start()
 
@@ -174,7 +188,8 @@ for s = 1, screen.count() do
     -- Widgets that are aligned to the right
     local right_layout = wibox.layout.fixed.horizontal()
     if s == 1 then right_layout:add(wibox.widget.systray()) end
-    right_layout:add(mybatterystatus)
+    right_layout:add(mybatterystatuschargingcontainer)
+    right_layout:add(mybatterystatusprogress)
 
     -- Now bring it all together (with the tasklist in the middle)
     local layout = wibox.layout.align.horizontal()
